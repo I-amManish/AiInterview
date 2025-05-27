@@ -7,6 +7,10 @@ const Modal = ({
     title,
     hideHeader
 }) => {
+
+    if(!isOpen) return null
+
+
   return <div className={`fixed inset-0 z-50 flex justify-center items-center w-full h-full bg-black/40`}>
     {/* modal content */}
     <div 

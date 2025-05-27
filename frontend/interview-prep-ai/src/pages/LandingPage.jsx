@@ -4,7 +4,7 @@ import { APP_FEATURES } from "../utils/data";
 import { useNavigate } from 'react-router-dom';
 import { LuSparkles } from "react-icons/lu";
 import Login from "./Auth/Login.jsx"
-import Signup from "./Auth/Signup.jsx"
+import SignUp from "./Auth/Signup.jsx"
 import Modal from '../components/Modal.jsx';
 
 const LandingPage = () => {
@@ -115,23 +115,27 @@ const LandingPage = () => {
         </div>
       </div>
 
-      <Modal 
-      isOpen={openAuthModal} 
-      onclose={() => {
-        setOpenAuthModal(false);
-        setCurrentPage("login");
-      }}
-      hideHeader
+      <Modal
+        isOpen={openAuthModal}
+        onclose={() => {
+          setOpenAuthModal(false);
+          setCurrentPage("login");
+        }}
+        hideHeader
       >
         <div>
           {currentPage === "login" && (
-            <Login setCurrentPage={setCurrentPage} />
+            <Login
+              setCurrentPage={setCurrentPage}
+              setShowLogin={setOpenAuthModal}  // ✅ Fix
+            />
           )}
           {currentPage === "signup" && (
             <SignUp setCurrentPage={setCurrentPage} />
           )}
         </div>
       </Modal>
+
     </>
   );
 };
