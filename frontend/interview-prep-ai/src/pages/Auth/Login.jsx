@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FaTimes } from 'react-icons/fa'; 
 import Input from '../../components/Inputs/Input.jsx';
+import { validateEmail } from '../../utils/helper.js';
 
 const Login = ({ setShowLogin, setCurrentPage }) => {
   const [email, setEmail] = useState("");
@@ -9,6 +10,32 @@ const Login = ({ setShowLogin, setCurrentPage }) => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+
+    if(!validateEmail(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if(!password) {
+      setError("Password cannot be empty.");
+      return;
+    }
+
+    setError("");
+
+    // info: Login api call
+    try {
+      
+    } catch (error) {
+      if(error.response && error.response.data.message) {
+        setError(error.response.data.message);
+      }
+      else {
+        setError("An unexpected error occurred. Please try again later.");
+      }
+      
+    }
+
   };
 
   return (
