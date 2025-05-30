@@ -1,15 +1,26 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { FaTimes } from 'react-icons/fa'; 
 import Input from '../../components/Inputs/Input.jsx';
 import { validateEmail } from '../../utils/helper.js';
+import axiosInstance from '../../utils/axiosInstance.js';
+import { API_PATHS } from '../../utils/apiPaths.js';
+import { useNavigate } from 'react-router-dom';
+import { UserContext } from '../../context/userContext.jsx';
 
 const Login = ({ setShowLogin, setCurrentPage }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
 
+  const { updateUser } = useContext(UserContext);
+
+  const navigate = useNavigate(); // Added missing hook
+
   const handleLogin = async (e) => {
     e.preventDefault();
+
+    // Reset error
+    setError("");
 
     if(!validateEmail(email)) {
       setError("Please enter a valid email address.");
@@ -21,26 +32,38 @@ const Login = ({ setShowLogin, setCurrentPage }) => {
       return;
     }
 
-    setError("");
-
-    // info: Login api call
     try {
-      
-    } catch (error) {
-      if(error.response && error.response.data.message) {
-        setError(error.response.data.message);
+      const response = await axiosInstance.post(API_PATHS.AUTH.LOGIN, {
+        email,
+        password,
+      });
+
+      const { token } = response.data;
+
+      if(token) {
+        localStorage.setItem("token", token);
+        updateUser(response.data)
+        navigate("/dashboard");
+        setShowLogin(false); // Close the login modal on success
+      } else {
+        setError("Login failed. No token received.");
       }
-      else {
+    } catch (error) {
+      if(error.response) {
+        // The request was made and the server responded with a status code
+        setError(error.response.data.message || "Login failed. Please try again.");
+      } else if(error.request) {
+        // The request was made but no response was received
+        setError("Network error. Please check your connection.");
+      } else {
+        // Something happened in setting up the request
         setError("An unexpected error occurred. Please try again later.");
       }
-      
     }
-
   };
 
   return (
     <div className='w-[90vw] md:w-[33vw] p-7 flex flex-col justify-center relative bg-white rounded shadow-md'>
-
       {/* Close (X) Button */}
       <button
         onClick={() => setShowLogin(false)}
@@ -62,6 +85,7 @@ const Login = ({ setShowLogin, setCurrentPage }) => {
           label="Email Address"
           placeholder="Enter your email"
           type="email"
+          required
         />
         <Input
           value={password}
@@ -69,6 +93,7 @@ const Login = ({ setShowLogin, setCurrentPage }) => {
           label="Password"
           placeholder="Min 8 Characters"
           type="password"
+          required
         />
 
         {error && <p className='text-red-500 text-xs pb-2.5'>{error}</p>}
@@ -80,6 +105,7 @@ const Login = ({ setShowLogin, setCurrentPage }) => {
         <p className='text-[13px] text-slate-800 mt-3'>
           Don't have an account?{" "}
           <button
+            type="button" // Added type to prevent form submission
             className='text-primary underline cursor-pointer'
             onClick={() => setCurrentPage("signup")}
           >
