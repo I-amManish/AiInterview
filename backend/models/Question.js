@@ -10,11 +10,11 @@ const questionSchema = new mongoose.Schema(
     answer: String,
     note: String,
     isPinned: {
-      Type: Boolean,
+      type: Boolean,
       default: false,
     },
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Question", questionSchema);s
+module.exports = mongoose.model("Question", questionSchema);
