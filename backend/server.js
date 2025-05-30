@@ -1,13 +1,12 @@
 require("dotenv").config();
 const express = require("express");
-const cors = require("cors")
+const cors = require("cors");
 const path = require("path");
 const connectDB = require("./config/db");
-const authRoutes = require("./routes/authRoutes.js")
-
+const authRoutes = require("./routes/authRoutes");
 const app = express();
 
-// note: middleware to handle cors
+// middleware to handle cors
 app.use(
     cors({
         origin: "*",
@@ -18,23 +17,21 @@ app.use(
 
 connectDB();
 
-
-// info: middleware
+// middleware 
 app.use(express.json());
 
-// info: Routes
+// Routes
 app.use("/api/auth", authRoutes);
-// app.use('/api/sessions', sessionRoutes);
-// app.use('api/questions', questionRoutes);
+// app.use("api/sessions", sessionRoutes);
+// app.use("api/questions", questionRoutes);
 
-// app.use("/api/ai/generate-questions", ProcessingInstruction, generateInterviewQuestions);
-// app.use("/api/ai/generate-explanation", ProcessingInstruction, generateConceptExplanation);
+// app.use("/api/ai/generate-questions", protect, generateInterviewQuestions);
+// app.use("/api/ai/generate-explanation", generateConceptExplanation);
+
+// Server upload folder
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 
-
-// info: server uploads folder
-app.use("/uploads", express.static(path.join(__dirname, "uploads"), {}));
-
-// info: start server
+// Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
+app.listen(PORT, () => console.log(`Server started on port ${PORT}`))
