@@ -38,7 +38,7 @@ exports.createSession = async(req,res) => {
         });
 
     } catch (error) {
-        res.status.json({
+        res.status(500).json({
             success: false,
             error: "Server Error",
         })
@@ -57,7 +57,7 @@ exports.getMySessions = async(req, res) => {
         .populate("questions");
         res.status(200).json(sessions);
     } catch (error) {
-        res.status.json({
+        res.status(500).json({
             success: false,
             error: "Server Error",
         })
@@ -89,7 +89,7 @@ exports.getSessionById = async(req, res) => {
         });
 
     } catch (error) {
-        res.status.json({
+        res.status(500).json({
             success: false,
             error: "Server Error",
         })
@@ -127,7 +127,7 @@ exports.deleteSession = async(req, res) => {
             message: "Session deleted successfully",
         })
     } catch (error) {
-        res.status.json({
+        res.status(500).json({
             success: false,
             error: "Server Error",
         })
