@@ -1,145 +1,302 @@
-import React, { useContext, useState } from 'react'
-import { useNavigate } from 'react-router-dom';
-import Input from '../../components/Inputs/Input.jsx';
-import ProfilePhotoSelector from '../../components/Inputs/ProfilePhotoSelector.jsx';
-import { validateEmail } from '../../utils/helper.js';
-import { UserContext } from '../../context/userContext.jsx';
-import axiosInstance from '../../utils/axiosInstance.js';
-import { API_PATHS } from '../../utils/apiPaths.js';
-import uploadImage from '../../utils/uploadImage.js';
+import React, { useState, useRef } from "react";
+import { IoClose, IoEyeOutline, IoEyeOffOutline } from "react-icons/io5";
+import { FaTrash } from "react-icons/fa";
+import { MdOutlineFileUpload } from "react-icons/md";
+import { validateEmail } from "../../utils/helper";
+import DefaultAvatar from "../../components/DefaultAvatar";
+import { useUserContext } from "../../context/userContext";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import axiosInstance from "../../utils/axiosInstance";
+import { API_PATHS, BASE_URL } from "../../utils/apiPaths";
+import { toast } from "react-hot-toast";
 
-const Signup = ({ setCurrentPage }) => {
-  const [profilePic, setProfilePic] = useState(null);
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [previewImage, setPreviewImage] = useState(null); // Add this state for preview
-  const [error, setError] = useState(null);
-  const { updateUser } = useContext(UserContext);
+const SignUp = ({ onClose, setCurrentPage }) => {
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+  });
+  const [errors, setErrors] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    general: "",
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [profilePicFile, setProfilePicFile] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef(null);
+  const { updateUser } = useUserContext();
   const navigate = useNavigate();
 
-  const handleSignUp = async (e) => {
-    e.preventDefault();
+  const validateForm = () => {
+    let isValid = true;
+    const newErrors = { fullName: "", email: "", password: "", general: "" };
 
-    let profileImageUrl = "";
-
-    if (!fullName) {
-      setError("Please enter your full name");
-      return;
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = "Please enter your full name";
+      isValid = false;
     }
 
-    if (!validateEmail(email)) {
-      setError("Please enter a valid email address.");
-      return;
+    if (!formData.email) {
+      newErrors.email = "Please enter your email address";
+      isValid = false;
+    } else if (!validateEmail(formData.email)) {
+      newErrors.email = "Please enter a valid email address";
+      isValid = false;
     }
 
-    if (!password) {
-      setError("Please enter the password");
-      return;
+    if (!formData.password) {
+      newErrors.password = "Please enter your password";
+      isValid = false;
+    } else if (formData.password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
+      isValid = false;
     }
 
-    try {
-      // Upload image if selected
-      if (profilePic) {
-        const imageUploadRes = await uploadImage(profilePic);
-        console.log("Image upload response:", imageUploadRes);
-        profileImageUrl = imageUploadRes.url || "";
-      }
+    setErrors(newErrors);
+    return isValid;
+  };
 
-      const response = await axiosInstance.post(API_PATHS.AUTH.REGISTER, {
-        name: fullName,
-        email,
-        password,
-        profileImageUrl,
-      });
-
-      const { token } = response.data;
-
-      if (token) {
-        localStorage.setItem("token", token);
-        updateUser(response.data);
-        navigate("/dashboard");
-      }
-
-    } catch (error) {
-      console.error("Signup error:", error);
-      if (error.response?.data?.message) {
-        setError(error.response.data.message);
-      } else {
-        setError("An unexpected error occurred. Please try again later.");
-      }
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "", general: "" }));
     }
   };
 
-  // Add this handler for image selection
-  const handleImageChange = (file) => {
-    setProfilePic(file);
-    // Create preview URL
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewImage(reader.result);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setPreviewImage(null);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+
+    try {
+      let imageUrl = "";
+      // Upload image first if exists (using direct axios since we don't have token yet)
+      if (profilePicFile) {
+        const formData = new FormData();
+        formData.append("image", profilePicFile);
+        
+        const uploadRes = await axios.post(
+          `${BASE_URL}${API_PATHS.IMAGE.UPLOAD_IMAGE}`,
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        );
+        imageUrl = uploadRes.data.imageUrl;
+      }
+
+      // Register user with axiosInstance
+      const { data } = await axiosInstance.post(API_PATHS.AUTH.REGISTER, {
+        name: formData.fullName,
+        email: formData.email,
+        password: formData.password,
+        profileImageUrl: imageUrl || undefined,
+      });
+
+      // Save token and update context
+      localStorage.setItem("token", data.token);
+      updateUser(data);
+      toast.success("Account created successfully!");
+      onClose();
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Signup error:", error);
+      const errorMsg = error.response?.data?.message || "Registration failed. Please try again.";
+      setErrors({ general: errorMsg });
+      toast.error(errorMsg);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Client-side validation
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image must be less than 5MB");
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        toast.error("Please upload an image file");
+        return;
+      }
+      setProfilePicFile(file);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setProfilePicFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const getPreviewUrl = () => {
+    return profilePicFile ? URL.createObjectURL(profilePicFile) : null;
   };
 
   return (
-    <div className='w-[90vw] md:w-[33vw] p-7 flex-col justify-center'>
-      <h3 className='text-lg font-semibold text-black'>Create an Account</h3>
-      <p className='text-xs text-slate-700 mt-[5px] mb-6'>
-        Join us today by entering your details below
-      </p>
+    <div className="bg-white rounded-xl p-8 w-full max-w-md">
+      {/* Header */}
+      <div className="relative mb-6">
+        <button
+          onClick={onClose}
+          className="absolute -right-2 -top-2 hover:opacity-75"
+        >
+          <IoClose className="text-gray-400 w-6 h-6" />
+        </button>
+        <h2 className="text-2xl font-bold mb-1">Create an Account</h2>
+        <p className="text-gray-600">Join us today!</p>
+      </div>
 
-      <form onSubmit={handleSignUp}>
-        {/* Pass previewImage instead of profilePic for display */}
-        <ProfilePhotoSelector 
-          image={previewImage} 
-          setImage={handleImageChange} 
-        />
+      {/* Profile Photo Upload */}
+      <div className="flex justify-center mb-6">
+        <div className="relative">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoChange}
+            className="hidden"
+            ref={fileInputRef}
+            id="profile-photo"
+          />
+          <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200">
+            {getPreviewUrl() ? (
+              <img
+                src={getPreviewUrl()}
+                alt="Profile preview"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <DefaultAvatar className="w-full h-full" />
+            )}
+          </div>
+          {getPreviewUrl() ? (
+            <button
+              onClick={handleRemovePhoto}
+              className="absolute -bottom-1 right-0 bg-white rounded-full p-2 shadow-md hover:bg-gray-50 border border-gray-200"
+              type="button"
+            >
+              <FaTrash className="w-3.5 h-3.5 text-red-500" />
+            </button>
+          ) : (
+            <label
+              htmlFor="profile-photo"
+              className="absolute -bottom-1 right-0 bg-white rounded-full p-2 shadow-md hover:bg-gray-50 border border-gray-200 cursor-pointer"
+            >
+              <MdOutlineFileUpload className="w-3.5 h-3.5 text-gray-600" />
+            </label>
+          )}
+        </div>
+      </div>
 
-        <div className='grid grid-cols-1 gap-2'>
-          <Input
-            value={fullName}
-            onChange={({ target }) => setFullName(target.value)}
-            label="Full Name"
-            placeholder="John"
+      {/* Signup Form */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Full Name */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Full Name</label>
+          <input
             type="text"
+            name="fullName"
+            value={formData.fullName}
+            onChange={handleChange}
+            placeholder="John Doe"
+            className={`w-full p-3 rounded-lg border ${
+              errors.fullName ? "border-red-500" : "border-gray-300"
+            } focus:outline-none focus:ring-2 focus:ring-gray-400`}
           />
-          <Input
-            value={email}
-            onChange={({ target }) => setEmail(target.value)}
-            label="Email Address"
-            placeholder="john@example.com"
-            type="email"
-          />
-          <Input
-            value={password}
-            onChange={({ target }) => setPassword(target.value)}
-            label="Password"
-            placeholder="Min 8 Characters"
-            type="password"
-          />
+          {errors.fullName && (
+            <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>
+          )}
         </div>
 
-        {error && <p className='text-red-500 text-xs pb-2.5'>{error}</p>}
+        {/* Email */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Email</label>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            placeholder="john@example.com"
+            className={`w-full p-3 rounded-lg border ${
+              errors.email ? "border-red-500" : "border-gray-300"
+            } focus:outline-none focus:ring-2 focus:ring-gray-400`}
+          />
+          {errors.email && (
+            <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+          )}
+        </div>
 
-        <button type='submit' className='btn-primary'>SIGN UP</button>
+        {/* Password */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Password</label>
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="••••••••"
+              className={`w-full p-3 rounded-lg border ${
+                errors.password ? "border-red-500" : "border-gray-300"
+              } focus:outline-none focus:ring-2 focus:ring-gray-400 pr-10`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+            >
+              {showPassword ? (
+                <IoEyeOffOutline className="w-5 h-5" />
+              ) : (
+                <IoEyeOutline className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+          {errors.password && (
+            <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+          )}
+        </div>
 
-        <p className='text-[13px] text-slate-800 mt-3'>
-          Already have an account?{" "}
-          <button
-            className='font-medium text-primary underline cursor-pointer'
-            onClick={() => setCurrentPage("login")}
-          >
-            Login
-          </button>
-        </p>
+        {/* General Error */}
+        {errors.general && (
+          <div className="text-red-500 text-sm py-2">{errors.general}</div>
+        )}
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="w-full bg-black text-white py-3 rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+        >
+          {isLoading ? "Creating Account..." : "Sign Up"}
+        </button>
       </form>
+
+      {/* Login Link */}
+      <p className="text-center text-sm mt-6 text-gray-600">
+        Already have an account?{" "}
+        <button
+          onClick={() => setCurrentPage("login")}
+          className="text-blue-600 font-medium hover:underline focus:outline-none"
+        >
+          Log in
+        </button>
+      </p>
     </div>
   );
 };
 
-export default Signup;
+export default SignUp;

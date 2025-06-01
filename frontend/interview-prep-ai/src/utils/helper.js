@@ -1,17 +1,19 @@
 export const validateEmail = (email) => {
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return regex.test(email);
+  const regex = /^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/;
+  return regex.test(email);
 };
 
-export const getInitials = (title, maxLength = 2) => {
-    if (!title) return "";
+export const getsInitial= (title) => {
+  if(!title) return "";
+  const words= title.split(" ");
 
-    const words = title.trim().split(" ").filter(Boolean); // Remove extra spaces
-    let initials = "";
+  let initials= "";
 
-    for (let i = 0; i < Math.min(words.length, maxLength); i++) {
-        initials += words[i][0];
+  for(let i=0; i<words.length; i++){
+    if(words[i].length > 0){
+      initials += words[i][0];
     }
-
-    return initials.toUpperCase();
+  }
+  
+  return initials.substring(0,2);
 };

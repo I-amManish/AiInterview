@@ -1,135 +1,131 @@
-const Session = require("../models/Session");
-const Question = require("../models/Question");
-const { removeListener } = require("../models/User");
+const Session = require('../models/Session');
+const Question = require('../models/Question');
+const asyncHandler = require('express-async-handler');
 
-// @desc create a new session and linked questions
-// @route POST /api/sessions/create
-// @access Private
-exports.createSession = async(req,res) => {
+// @desc    Create a new session
+// @route   POST /api/sessions/create
+// @access  Private
+exports.createSession = asyncHandler(async (req, res) => {
     try {
-        const { role, experience, topicsToFocus, description, questions } = req.body;
-        const userId = req.user.id;
+        const { role, experience, topicToFocus, description, questions } = req.body;
+        
+        if (!role || !experience || !topicToFocus) {
+            return res.status(400).json({ message: "Please provide all required fields" });
+        }
 
-        const session = new Session({
-            user: userId,
+        // Create the session with user reference
+        const session = await Session.create({
+            userId: req.user._id, // Using _id from auth middleware
             role,
             experience,
-            topicsToFocus,
+            topicToFocus,
             description,
-            questions,
+            questions: [], // Initialize empty, will be populated with question IDs
         });
 
-        const questionDocs = await Promise.all(
-            questions.map(async (q) => {
-                const question = await Question.create({
-                    session: session._id,
-                    question: q.question,
-                    answer: q.answer,
-                })
-            })
-        );
+        if (questions && Array.isArray(questions)) {
+            const questionDocs = await Promise.all(questions.map(async (question) => {
+                try {
+                    const questionDoc = await Question.create({
+                        question: question.question,
+                        session: session._id,
+                        answer: question.answer,
+                    });
+                    return questionDoc._id;
+                } catch (err) {
+                    console.error('Error creating question:', err);
+                    throw new Error('Failed to create question');
+                }
+            }));
 
-        session.questions = questionDocs;
-        await session.save();
+            // Update session with question IDs
+            session.questions = questionDocs;
+            await session.save();
+        }
 
         res.status(201).json({
             success: true,
-            session,
+            session
         });
-
     } catch (error) {
+        console.error('Error in createSession:', error);
         res.status(500).json({
-            success: false,
-            error: "Server Error",
-        })
+            message: "Error creating session",
+            error: error.message
+        });
     }
-};
+});
 
-// @desc get all sessions for the logged-in user
-// @route GET /api/sessions/my-sessions
-// @access Private
-exports.getMySessions = async(req, res) => {
-     try {
-        const sessions = await Session.find({
-            user: req.user.id,
-        })
-        .sort({ createdAt: -1 })
-        .populate("questions");
+// @desc    Get all sessions for a user
+// @route   GET /api/sessions
+// @access  Private
+exports.getSessions = asyncHandler(async (req, res) => {
+    try {
+        const sessions = await Session.find({ userId: req.user._id })
+            .populate('questions')
+            .sort({ createdAt: -1 });
         res.status(200).json(sessions);
     } catch (error) {
+        console.error('Error in getSessions:', error);
         res.status(500).json({
             success: false,
-            error: "Server Error",
-        })
+            error: error.message
+        });
     }
-};
+});
 
-// @desc get a session by ID with populated questions
-// @route GET /api/sessions/:id
-// @access Private
-exports.getSessionById = async(req, res) => {
-     try {
+// @desc    Get single session
+// @route   GET /api/sessions/:id
+// @access  Private
+exports.getSessionById = asyncHandler(async (req, res) => {
+    try {
         const session = await Session.findById(req.params.id)
         .populate({
-            path: "questions",
-            options: { sort: { isPinned: -1, createdAt: -1 } },
+            path:'questions',
+            options:{sort:{createdAt:1, isPinned: -1}},
         })
         .exec();
 
-        if(!session) {
-            return res.status(404).json({
-                success: false,
-                error: "Session not found",
-            });
+        if(!session){
+            return res.status(404).json({success:false,message:"Session not found"});
         }
 
-        res.status(200).json({
-            success: true,
-            session
-        });
 
+        res.status(200).json({success:true,session});
     } catch (error) {
+        console.error('Error in getSessionById:', error);
         res.status(500).json({
-            success: false,
-            error: "Server Error",
-        })
+            message: "Error fetching session",
+            error: error.message
+        });
     }
-};
+});
 
-// @desc delete a session by ID
-// @route DELETE /api/sessions/:id
-// @access Private
-exports.deleteSession = async(req, res) => {
-     try {
+// @desc    Delete session
+// @route   DELETE /api/sessions/:id
+// @access  Private
+exports.deleteSession = asyncHandler(async (req, res) => {
+    try {
         const session = await Session.findById(req.params.id);
 
-        if(!session) {
-            return res.status(404).json({
-                success: false,
-                error: "Session not found",
-            });
-
+        if(!session){
+            return res.status(404).json({success:false,message:"Session not found"});
         }
-        // note: check if the logged-in user owns this session
-        if (session.user.toString() !== req.user.id) {
-            return res.status(401).json({
-                message: "Not authorized to delete this session",
-            });
+        if(session.userId.toString() !== req.user._id.toString()){
+            return res.status(403).json({success:false,message:"Unauthorized"});
         }
 
-        // note: first, delete all questions linked to this session
-        await Question.deleteMany({ session: session._id});
 
-        // note: then, delete the session itself
+        await Question.deleteMany({session:session._id});
         await session.deleteOne();
+         
 
-        res.status(200).json({
-            message: "Session deleted successfully",
-        })
+        res.status(200).json({success:true,message:"Session deleted successfully"});
     } catch (error) {
+        console.error('Error in deleteSession:', error);
         res.status(500).json({
-            success: false,
-            error: "Server Error",
-        })
+            message: "Error deleting session",
+            error: error.message
+        });
     }
-};
+});  

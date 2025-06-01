@@ -1,100 +1,127 @@
-const User = require("../models/User");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+const User = require('../models/User');
+const asyncHandler = require('express-async-handler');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
-// generate jwt token
-const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET, {
-        expiresIn: "7d",
-    });
+const generateToken = (userId) => {
+    return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
-// @desc Register a new user
-// @route POST /api/auth/register
-// @access Public
-const registerUser = async (req, res) => {
+// @desc    Register a new user
+// @route   POST /api/auth/register
+// @access  Public
+const registerUser = asyncHandler(async (req, res) => {
     try {
-        const { name, email, password, profileImageUrl} = req.body;
+        const { name, email, password, profileImageUrl } = req.body;
 
-        // note: check if user already exists
+        if (!name || !email || !password) {
+            return res.status(400).json({ message: "Please fill all required fields" });
+        }
+
         const userExists = await User.findOne({ email });
-        if(userExists) {
+        if (userExists) {
             return res.status(400).json({ message: "User already exists" });
         }
-        // info: hash password
+
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // info: create new user
         const user = await User.create({
             name,
             email,
             password: hashedPassword,
-            profileImageUrl,
+            profileImageUrl: profileImageUrl || null
         });
 
-        // Return user data with jwt
-        res.status(201).json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            profileImageUrl: user.profileImageUrl,
-            token: generateToken(user._id),
-        });
+        if (user) {
+            res.status(201).json({
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                profileImageUrl: user.profileImageUrl,
+                token: generateToken(user._id)
+            });
+        } else {
+            res.status(400).json({ message: "Invalid user data" });
+        }
     } catch (error) {
-        res.status(500).json({ message:"Server error", error: error.message });
+        console.error('Error in registerUser:', error);
+        res.status(500).json({ 
+            message: "Error registering user", 
+            error: error.message 
+        });
     }
-};
+});
 
-// @desc Login a user
-// @route POST /api/auth/login
-// @access Public
-const loginUser = async (req, res) => {
+// @desc    Login a user
+// @route   POST /api/auth/login
+// @access  Public
+const loginUser = asyncHandler(async (req, res) => {
     try {
+        console.log('Login attempt with:', req.body);
         const { email, password } = req.body;
 
-        const user = await User.findOne({ email });
-        if(!user) {
-            return res.status(400).json({ message: "Invalid email or password" });
+        if (!email || !password) {
+            return res.status(400).json({ message: "Please provide email and password" });
         }
 
-        // info: compare password
-        const isMatch = await bcrypt.compare(password, user.password);
-        if(!isMatch) {
-            return res.status(400).json({ message: "Invalid email or password" });
+        // Find user
+        const user = await User.findOne({ email });
+        console.log('User found:', user ? 'Yes' : 'No');
+        
+        if (!user) {
+            return res.status(401).json({ message: "Invalid email or password" });
         }
-        // note: Return user data with jwt
-        res.json({
+
+        // Check password
+        const isMatch = await bcrypt.compare(password, user.password);
+        console.log('Password match:', isMatch ? 'Yes' : 'No');
+        
+        if (!isMatch) {
+            return res.status(401).json({ message: "Invalid email or password" });
+        }
+
+        // Generate response
+        const response = {
             _id: user._id,
             name: user.name,
             email: user.email,
             profileImageUrl: user.profileImageUrl,
-            token: generateToken(user._id),
-        });
+            token: generateToken(user._id)
+        };
+        
+        console.log('Login successful, sending response');
+        res.json(response);
     } catch (error) {
-        res.status(500).json({ message:"Server error", error: error.message });
+        console.error('Error in loginUser:', error);
+        res.status(500).json({ 
+            message: "Error logging in", 
+            error: error.message 
+        });
     }
-};
+});
 
-// @desc Get user profile
-// @route GET /api/auth/profile
-// @access Private ( require JWT)
-const getUserProfile = async (req, res) => {
-     try {
+// @desc    Get user profile
+// @route   GET /api/auth/profile
+// @access  Private
+const getUserProfile = asyncHandler(async (req, res) => {
+    try {
         const user = await User.findById(req.user._id).select("-password");
-        if(!user) {
-            return res.status(400).json({ message: "User not found" });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
         }
         res.json(user);
-        
     } catch (error) {
-        res.status(500).json({ message:"Server error", error: error.message });
+        console.error('Error in getUserProfile:', error);
+        res.status(500).json({ 
+            message: "Error fetching user profile", 
+            error: error.message 
+        });
     }
-};
-
+});
 
 module.exports = {
     registerUser,
     loginUser,
-    getUserProfile,
+    getUserProfile
 };

@@ -1,118 +1,175 @@
-import React, { useContext, useState } from 'react';
-import { FaTimes } from 'react-icons/fa'; 
-import Input from '../../components/Inputs/Input.jsx';
-import { validateEmail } from '../../utils/helper.js';
-import axiosInstance from '../../utils/axiosInstance.js';
-import { API_PATHS } from '../../utils/apiPaths.js';
-import { useNavigate } from 'react-router-dom';
-import { UserContext } from '../../context/userContext.jsx';
+import React, { useState } from "react";
+import { IoClose } from "react-icons/io5";
+import Input from "../../components/Input";
+import { validateEmail } from "../../utils/helper";
+import { useNavigate } from "react-router-dom";
+import { API_PATHS } from "../../utils/apiPaths";
+import axiosInstance from "../../utils/axiosInstance";
+import { useUserContext } from "../../context/userContext";
+import { toast } from "react-hot-toast";
 
-const Login = ({ setShowLogin, setCurrentPage }) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
+const Login = ({ setCurrentPage, onClose }) => {
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+  const [errors, setErrors] = useState({
+    email: "",
+    password: "",
+    general: ""
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const { updateUser } = useUserContext();
+  const navigate = useNavigate();
 
-  const { updateUser } = useContext(UserContext);
+  const validateForm = () => {
+    let isValid = true;
+    const newErrors = {
+      email: "",
+      password: "",
+      general: ""
+    };
 
-  const navigate = useNavigate(); // Added missing hook
+    if (!formData.email) {
+      newErrors.email = "Please enter your email address.";
+      isValid = false;
+    } else if (!validateEmail(formData.email)) {
+      newErrors.email = "Please enter a valid email address.";
+      isValid = false;
+    }
 
-  const handleLogin = async (e) => {
+    if (!formData.password) {
+      newErrors.password = "Please enter your password.";
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: "",
+        general: ""
+      }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Clear previous errors
+    setErrors({
+      email: "",
+      password: "",
+      general: ""
+    });
 
-    // Reset error
-    setError("");
-
-    if(!validateEmail(email)) {
-      setError("Please enter a valid email address.");
+    // Validate form
+    if (!validateForm()) {
       return;
     }
 
-    if(!password) {
-      setError("Password cannot be empty.");
-      return;
-    }
+    setIsLoading(true);
 
     try {
-      const response = await axiosInstance.post(API_PATHS.AUTH.LOGIN, {
-        email,
-        password,
-      });
-
-      const { token } = response.data;
-
-      if(token) {
-        localStorage.setItem("token", token);
-        updateUser(response.data)
+      // Make login request
+      const response = await axiosInstance.post(API_PATHS.AUTH.LOGIN, formData);
+      
+      if (response.data) {
+        const userData = response.data;
+        // Ensure we have the required user data
+        if (!userData.token) {
+          throw new Error('No authentication token received');
+        }
+        
+        updateUser(userData);
+        toast.success('Welcome back!');
+        onClose();
         navigate("/dashboard");
-        setShowLogin(false); // Close the login modal on success
       } else {
-        setError("Login failed. No token received.");
+        throw new Error('Invalid response from server');
       }
     } catch (error) {
-      if(error.response) {
-        // The request was made and the server responded with a status code
-        setError(error.response.data.message || "Login failed. Please try again.");
-      } else if(error.request) {
-        // The request was made but no response was received
-        setError("Network error. Please check your connection.");
-      } else {
-        // Something happened in setting up the request
-        setError("An unexpected error occurred. Please try again later.");
-      }
+      console.error('Login error:', error);
+      setErrors(prev => ({
+        ...prev,
+        general: error.response?.data?.message || "Invalid email or password. Please try again."
+      }));
+      toast.error("Login failed");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className='w-[90vw] md:w-[33vw] p-7 flex flex-col justify-center relative bg-white rounded shadow-md'>
-      {/* Close (X) Button */}
+    <div className="w-full max-w-md relative bg-white rounded-2xl">
+      {/* Close Button */}
       <button
-        onClick={() => setShowLogin(false)}
-        className='absolute top-4 right-4 text-gray-500 hover:text-black focus:outline-none'
-        aria-label='Close login form'
+        onClick={onClose}
+        className="absolute -top-2 -right-2 w-8 h-8 bg-black text-white rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors"
+        aria-label="Close login form"
       >
-        <FaTimes size={18} />
+        <IoClose size={20} />
       </button>
 
-      <h3 className='text-lg font-semibold text-black'>Welcome Back</h3>
-      <p className='text-xs text-slate-700 mt-[5px] mb-6'>
-        Please enter your details to login.
-      </p>
+      <div className="p-6">
+        <h1 className="text-2xl font-bold mb-2">Welcome Back</h1>
+        <p className="text-gray-600 text-sm mb-6">Please enter your details to log in</p>
 
-      <form onSubmit={handleLogin}>
-        <Input
-          value={email}
-          onChange={({ target }) => setEmail(target.value)}
-          label="Email Address"
-          placeholder="Enter your email"
-          type="email"
-          required
-        />
-        <Input
-          value={password}
-          onChange={({ target }) => setPassword(target.value)}
-          label="Password"
-          placeholder="Min 8 Characters"
-          type="password"
-          required
-        />
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            type="email"
+            label="Email Address"
+            placeholder="john@example.com"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            error={errors.email}
+          />
 
-        {error && <p className='text-red-500 text-xs pb-2.5'>{error}</p>}
+          <Input
+            type="password"
+            label="Password"
+            placeholder="Min 8 characters"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            error={errors.password}
+          />
 
-        <button type='submit' className='btn-primary'>
-          Login
-        </button>
+          {errors.general && (
+            <div className="text-red-500 text-sm mt-2">
+              {errors.general}
+            </div>
+          )}
 
-        <p className='text-[13px] text-slate-800 mt-3'>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-black text-white py-3 rounded-lg hover:bg-gray-800 transition-colors mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? "Logging in..." : "LOGIN"}
+          </button>
+        </form>
+
+        <p className="text-center mt-6 text-sm text-gray-600">
           Don't have an account?{" "}
           <button
-            type="button" // Added type to prevent form submission
-            className='text-primary underline cursor-pointer'
             onClick={() => setCurrentPage("signup")}
+            className="text-black font-medium hover:underline"
           >
-            SignUp
+            Sign Up
           </button>
         </p>
-      </form>
+      </div>
     </div>
   );
 };

@@ -1,10 +1,13 @@
-const express = require("express");
-const { togglePinQuestion, updateQuestionNote, addQuestionToSession } = require("../controllers/questionController");
-const { protect } = require("../middleware/authMiddleware");   
+const express=require('express');
+const router=express.Router();
 
-const router = express.Router();   
-router.post('/add', protect, addQuestionToSession);
-router.post('/:id/pin', protect, togglePinQuestion);
-router.post('/:id/note', protect, updateQuestionNote);
+const {togglePinQuestion,updateQuestionNote,addQuestionToSession}=require('../controllers/questionController');
+const {protect}=require('../middlewares/authMiddleware');
 
-module.exports = router;
+router.post('/add',protect,addQuestionToSession);
+router.post('/:id/pin',protect,togglePinQuestion);
+router.post('/:id/note',protect,updateQuestionNote);
+
+module.exports=router;
+
+

@@ -1,20 +1,22 @@
-import axios from 'axios';
-import { BASE_URL } from './apiPaths';
+import axios from "axios";
+import { BASE_URL } from "./apiPaths";
 
+// Create axios instance with base URL
 const axiosInstance = axios.create({
     baseURL: BASE_URL,
-    timeout: 8000,
+    timeout: 60000,
     headers: {
-        'Content-Type': 'application/json',
-    },
+        'Content-Type': 'application/json'
+    }
 });
 
-// request interceptor
+// Add request interceptor
 axiosInstance.interceptors.request.use(
     (config) => {
-        const accessToken = localStorage.getItem("token");
-        if(accessToken) {
-            config.headers.Authorization = `Bearer ${accessToken}`;
+        // Get token from localStorage
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
     },
@@ -23,22 +25,36 @@ axiosInstance.interceptors.request.use(
     }
 );
 
-// Response interceptor
+// Add response interceptor
 axiosInstance.interceptors.response.use(
     (response) => {
         return response;
     },
     (error) => {
-        if(error.response.status === 401) {
-            // redirect to login page
-            window.location.href = "/";
-        } else if(error.response.status === 500) {
-            console.log("Server error. Please try again later.");
-        } else if(error.code === "ECONNABORTED") {
-            console.log("Request timed out. Please try again later.");
+        if (error.response) {
+            // Handle 401 Unauthorized
+            if (error.response.status === 401) {
+                localStorage.removeItem('token');
+                // Only redirect to login if not already on login/signup page
+                if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/signup')) {
+                    window.location.href = '/';
+                }
+            }
+            
+            // Log the error for debugging
+            console.error('API Error:', {
+                status: error.response.status,
+                data: error.response.data,
+                url: error.config.url
+            });
+        } else if (error.request) {
+            console.error('Request error (no response):', error.request);
+        } else {
+            console.error('Error:', error.message);
         }
-        return Promise.rejectect(error);
+        return Promise.reject(error);
     }
 );
 
 export default axiosInstance;
+

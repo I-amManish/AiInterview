@@ -1,71 +1,47 @@
-const getCodeLanguage = (question) => {
-  const q = question.toLowerCase();
-  if (q.includes("react") || q.includes("javascript") || q.includes("js")) return "js";
-  if (q.includes("python")) return "python";
-  if (q.includes("java")) return "java";
-  if (q.includes("c++") || q.includes("cpp")) return "cpp";
-  return "plaintext";
-};
+const questionAnswerPrompt = (role, experience, topicsToFocus, numberOfQuestions)=>`
+You are an AI trained to generate technical interview questions and answers.
 
-const questionAnswerPrompt = (role, experience, topicsToFocus, numberOfQuestions) => {
-  if (!role?.trim()) throw new Error("Role cannot be empty");
-  if (!experience?.trim()) throw new Error("Experience level cannot be empty");
-  if (typeof numberOfQuestions !== 'number' || numberOfQuestions < 1 || numberOfQuestions > 10) {
-    throw new Error("Number of questions must be between 1-10");
-  }
+Task:
+- Role: ${role}
+- Candidate Experience: ${experience} years
+- Focus Topics: ${topicsToFocus}
+- Write ${numberOfQuestions} interview questions.
+- For each question, generate a detailed but beginner-friendly answer.
+- If the answer needs a code example, add a small code block inside.
+- Keep formatting very clean.
+- Return a pure JSON array like:
 
-  const topicsArray = Array.isArray(topicsToFocus)
-    ? topicsToFocus.filter(Boolean).map(topic => topic.trim())
-    : typeof topicsToFocus === 'string'
-      ? topicsToFocus.split(',').map(topic => topic.trim()).filter(Boolean)
-      : [];
+[
+  {
+    "question": "Question here?",
+    "answer": "Answer here."
+  },
+  ...
+]
 
-  if (topicsArray.length === 0) throw new Error("At least one topic must be provided");
+Important: Do NOT add any extra text. Only return valid JSON.
+`;
 
-  return `
-You are an AI interview assistant.
+const conceptExplainPrompt = (question) => `
+You are an AI trained to generate explanations for a given interview question.
 
-Generate ${numberOfQuestions} concise technical interview questions and answers for the following role:
-
-Role: ${role}
-Experience Level: ${experience}
-Topics to focus: ${topicsArray.join(', ')}
-
-**Instructions**:
-- Each answer should be easy to understand for beginners.
-- Limit answers to 40–50 words.
-- Format strictly like this (no extra markdown or symbols):
+Task:
+- Explain the following interview question and its concept in depth as if you're teaching a beginner developer.
+- Question: "${question}"
+- After the explanation, provide a short and clear title that summarizes the concept for the article or page header.
+- If the explanation includes a code example, provide a small code block.
+- Keep the formatting very clean and clear.
+- Return the result as a valid JSON object in the following format:
 
 {
-  "question": "Your question?",
-  "answer": "Answer with clear explanation, 40–50 words max.",
-  "category": "One of: ${topicsArray.join(', ')}"
+  "title": "Short title here",
+  "explanation": "Explanation here."
 }
 
-Output a pure JSON array of ${numberOfQuestions} such objects. Do NOT include any markdown, extra formatting, or explanatory text.
-`.trim();
-};
+Important: Do NOT add any extra text outside the JSON format. Only return valid JSON.
+`;
 
-const conceptExplainPrompt = (question) => {
-  if (!question?.trim()) throw new Error("Question cannot be empty");
-
-  return `
-**Concept Explanation: "${question}"**
-
-**Definition**: [Brief overview]
-**Key Details**: [How it works, technical aspects]
-**Usage**: [Where and why it’s used]
-**Example**: 
-\`\`\`${getCodeLanguage(question)}
-[Minimal example]
-\`\`\`
-**Common Mistakes**: [Key pitfalls to avoid]
-
-**Begin Explanation**:
-`.trim();
-};
-
-module.exports = {
-  questionAnswerPrompt,
-  conceptExplainPrompt,
+module.exports={
+    questionAnswerPrompt,
+    conceptExplainPrompt
 };
